@@ -1,6 +1,7 @@
 from typing import Optional
 from datetime import datetime
 from sqlmodel import SQLModel, Field
+from pydantic import EmailStr
 
 #Optioanl[int] = Field(default = None, primary_key=True) -- unique ID for each row; Optional.default=None because database assigns this automatically when a row is created 
 #Field(unqiue=True, index=True) -- no two users can share username/email, and its indexed for fast looups 
@@ -32,3 +33,12 @@ class AuditLog(SQLModel, table=True):
     action: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     ip_address: str
+
+class UserCreate(SQLModel): #data shape FastAPI uses to validate incoming request body so no need for table+true 
+    username: str
+    email: EmailStr
+    password: str
+
+class UserLogin(SQLModel):
+    username: str
+    password: str
