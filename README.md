@@ -13,6 +13,19 @@ Interactive API docs (Swagger UI): https://secure-file-vault-3lon.onrender.com/d
 
 > Note: hosted on Render's free tier, which sleeps after 15 minutes of inactivity (first request may take 30–60s to wake up) and has an ephemeral filesystem — uploaded files and the database reset periodically on redeploy/restart, so don't expect anything you upload on the live demo to persist long-term.
 
+## Tech Stack
+
+- **Language**: Python 3.12
+- **Framework**: FastAPI
+- **Server**: Uvicorn (ASGI)
+- **Database**: SQLite with SQLModel (built on SQLAlchemy)
+- **Auth**: JWT (python-jose), bcrypt password hashing (passlib)
+- **Malware Scanning**: VirusTotal API
+- **Hosting**: Render
+- **Dev Environment**: WSL2 (Ubuntu), VS Code
+
+
+
 ## Features
 
 **Authentication**
@@ -29,7 +42,7 @@ Interactive API docs (Swagger UI): https://secure-file-vault-3lon.onrender.com/d
 - Upload, download, delete, and list files
 - File metadata (filename, size, upload time, owner, scan result) stored in SQLite
 
-**Security Hardening**
+**Security Controls**
 - Secrets (JWT signing key, API keys) stored in environment variables, never hardcoded
 - File size limit (10MB) and dangerous file extension blocklist
 - Filename sanitization to prevent path traversal
@@ -45,30 +58,35 @@ Interactive API docs (Swagger UI): https://secure-file-vault-3lon.onrender.com/d
 
 - **Broken Authentication**: passwords are hashed with bcrypt (never stored or compared in plaintext); JWTs are short-lived to limit the impact of a leaked token
 - **Broken Access Control**: every file endpoint verifies the requester owns the resource before returning or modifying it, at the database query level
-- **Injection**: all database access goes through an ORM (SQLModel/SQLAlchemy) with parameterized queries, eliminating SQL injection risk
+- **Injection**: all database access goes through an ORM (SQLModel/SQLAlchemy) with parameterized queries, reducing SQL injection risk
 - **Unrestricted File Upload**: a dangerous-extension blocklist and 10MB size cap are enforced before any file is saved
 - **Path Traversal**: filenames are sanitized and stored under generated identifiers rather than the original name
 - **Malicious File Content**: every upload is submitted to VirusTotal for scanning
 - **Security Misconfiguration**: secrets are never committed to source control (`.env` is gitignored; `.env.example` documents required variables without real values)
 - **Insufficient Logging & Monitoring**: every sensitive action is recorded in an audit log with actor, action, timestamp, and IP
 
-## Known Limitations
+## Architecture Diagram
 
-Being upfront about a couple of gaps found while testing, rather than hoping nobody notices:
+```mermaid
+flowchart TD
+    Client["Client (Browser / Swagger UI)"]
+    API["FastAPI App (main.py)"]
+    Auth["Auth Layer (auth.py)<br/>bcrypt hashing + JWT verification"]
+    DB[("SQLite Database<br/>Users / Files / AuditLog")]
+    Storage[("Local Disk<br/>uploads/ folder")]
+    VT["VirusTotal API"]
 
-- **Duplicate email isn't handled gracefully.** Registration checks for a duplicate *username* but not a duplicate *email*, so registering with an already-used email throws an unhandled database error (500) instead of a clean 400.
-- **No password strength requirement.** Any non-empty password is currently accepted at registration.
+    Client -->|"HTTPS request + Bearer token"| API
+    API -->|"verify token / hash password"| Auth
+    Auth -->|"user identity"| API
+    API -->|"read/write user, file & audit records"| DB
+    API -->|"save/read file bytes"| Storage
+    API -->|"submit file for scanning"| VT
+    VT -->|"scan result"| API
+    API -->|"JSON response"| Client
+```
 
-## Tech Stack
-
-- **Language**: Python 3.12
-- **Framework**: FastAPI
-- **Server**: Uvicorn (ASGI)
-- **Database**: SQLite with SQLModel (built on SQLAlchemy)
-- **Auth**: JWT (python-jose), bcrypt password hashing (passlib)
-- **Malware Scanning**: VirusTotal API
-- **Hosting**: Render
-- **Dev Environment**: WSL2 (Ubuntu), VS Code
+Every request to a protected route passes through the auth layer first, which verifies the JWT and looks up the requesting user before any route logic runs. File uploads are written to local disk and submitted to VirusTotal in the same request; every login, logout, upload, download, and delete also writes a row to the audit log table.
 
 ## API Endpoints
 
@@ -84,37 +102,6 @@ Being upfront about a couple of gaps found while testing, rather than hoping nob
 | DELETE | `/files/{file_id}` | Delete a file you own | Yes |
 | GET | `/files/{file_id}/scan` | Check a file's VirusTotal scan result | Yes |
 
-## Running Locally
-
-1. Clone the repo:
-   ```
-   git clone https://github.com/tejasvii1/secure-file-vault.git
-   cd secure-file-vault
-   ```
-
-2. Create and activate a virtual environment:
-   ```
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-
-3. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-
-4. Create a `.env` file (see `.env.example` for the required variables) with your own `SECRET_KEY` and `VT_API_KEY`.
-
-5. Run the server:
-   ```
-   uvicorn main:app --reload
-   ```
-
-6. Open `http://127.0.0.1:8000/docs` to test the API.
-
-## API Testing
-
-This project is backend-only with no frontend. All testing and demoing is done through the interactive Swagger UI at `/docs`, which lets you register, log in, authorize with your token, and try every endpoint directly in the browser.
 
 ## Screenshots
 
@@ -148,3 +135,44 @@ This project is backend-only with no frontend. All testing and demoing is done t
 ![Scan clean](screenshots/scansuccessresponse.png)
 
 *(Full request/response pairs for every scenario — including validation errors, 401s, and 404s — are in the `/screenshots` folder.)*
+
+## Known Limitations
+
+- **Duplicate email isn't handled gracefully:** Registration checks for a duplicate *username* but not a duplicate *email*, so registering with an already-used email throws an unhandled database error (500) instead of a clean 400.
+- **No password strength requirement:** Any non-empty password is currently accepted at registration.
+- **File validation:** Upload validation currently relies partially on file extensions and does not perform comprehensive content/MIME-type verification.
+- **Local persistence:** SQLite and local file storage are appropriate for this demonstration but would need to be replaced with persistent database/object storage for production deployment.
+
+
+
+## Running Locally
+
+1. Clone the repo:
+   ```
+   git clone https://github.com/tejasvii1/secure-file-vault.git
+   cd secure-file-vault
+   ```
+
+2. Create and activate a virtual environment:
+   ```
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+
+4. Create a `.env` file (see `.env.example` for the required variables) with your own `SECRET_KEY` and `VT_API_KEY`.
+
+5. Run the server:
+   ```
+   uvicorn main:app --reload
+   ```
+
+6. Open `http://127.0.0.1:8000/docs` to test the API.
+
+## API Testing
+
+This project is backend-only with no frontend. All testing and demoing is done through the interactive Swagger UI at `/docs`, which lets you register, log in, authorize with your token, and try every endpoint directly in the browser.
