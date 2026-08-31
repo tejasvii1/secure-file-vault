@@ -65,28 +65,53 @@ Interactive API docs (Swagger UI): https://secure-file-vault-3lon.onrender.com/d
 - **Security Misconfiguration**: secrets are never committed to source control (`.env` is gitignored; `.env.example` documents required variables without real values)
 - **Insufficient Logging & Monitoring**: every sensitive action is recorded in an audit log with actor, action, timestamp, and IP
 
+
 ## Architecture Diagram
 
-```mermaid
-flowchart TD
-    Client["Client (Browser / Swagger UI)"]
-    API["FastAPI App (main.py)"]
-    Auth["Auth Layer (auth.py)<br/>bcrypt hashing + JWT verification"]
-    DB[("SQLite Database<br/>Users / Files / AuditLog")]
-    Storage[("Local Disk<br/>uploads/ folder")]
-    VT["VirusTotal API"]
-
-    Client -->|"HTTPS request + Bearer token"| API
-    API -->|"verify token / hash password"| Auth
-    Auth -->|"user identity"| API
-    API -->|"read/write user, file & audit records"| DB
-    API -->|"save/read file bytes"| Storage
-    API -->|"submit file for scanning"| VT
-    VT -->|"scan result"| API
-    API -->|"JSON response"| Client
+```text
+                         Client / Swagger UI
+                                │
+                                │ HTTP requests
+                                ▼
+                         FastAPI Application
+                                │
+                 ┌──────────────┴──────────────┐
+                 │                             │
+                 ▼                             ▼
+          Authentication                 File Endpoints
+        register / login / me        upload / list / download
+                 │                         / delete / scan
+                 │                             │
+          bcrypt + JWT                       │
+                 │                    ownership validation
+                 │                             │
+                 └──────────────┬──────────────┘
+                                │
+                                ▼
+                       SQLModel / SQLAlchemy
+                                │
+                ┌───────────────┼───────────────┐
+                ▼               ▼               ▼
+             Users            Files          Audit Logs
+                │               │               │
+                │               │               └─ user / action /
+                │               │                  timestamp / IP
+                │               ▼
+                │        File Validation
+                │        ├─ size limit
+                │        ├─ extension check
+                │        └─ filename sanitization
+                │               │
+                │               ├──────────────▶ VirusTotal API
+                │               │                malware scan
+                │               ▼
+                │          Upload Storage
+                │
+                ▼
+             SQLite
 ```
 
-Every request to a protected route passes through the auth layer first, which verifies the JWT and looks up the requesting user before any route logic runs. File uploads are written to local disk and submitted to VirusTotal in the same request; every login, logout, upload, download, and delete also writes a row to the audit log table.
+Secrets such as the JWT signing key and VirusTotal API key are loaded from environment variables rather than stored in source code. File operations require authentication and enforce ownership checks before accessing or modifying stored files.
 
 ## API Endpoints
 
