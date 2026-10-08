@@ -1,9 +1,11 @@
-from sqlmodel import SQLModel, create_engine, Session 
+import os
+from sqlmodel import SQLModel, create_engine, Session
 
 from models import User, File, AuditLog
 
 
-DATABASE_URL = "sqlite:///vault.db" # tells SQLModel to use SQLite database stored in a file called vault.db
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///vault.db") # defaults to a SQLite database stored in a file called vault.db;
+# setting the DATABASE_URL environment variable points the app at a different database (e.g. inside Docker or on AWS)
 
 engine = create_engine(DATABASE_URL, echo=True) # engine is the connection manager to the database 
 

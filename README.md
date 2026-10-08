@@ -15,12 +15,15 @@ Interactive API docs (Swagger UI): https://secure-file-vault-3lon.onrender.com/d
 
 ## Tech Stack
 
+- **Frontend**: React, TypeScript, Vite
 - **Language**: Python 3.12
 - **Framework**: FastAPI
 - **Server**: Uvicorn (ASGI)
 - **Database**: SQLite with SQLModel (built on SQLAlchemy)
 - **Auth**: JWT (python-jose), bcrypt password hashing (passlib)
 - **Malware Scanning**: VirusTotal API
+- **Containerization**: Docker
+- **CI**: GitHub Actions (builds the frontend, builds the Docker image, smoke-tests the API)
 - **Hosting**: Render
 - **Dev Environment**: WSL2 (Ubuntu), VS Code
 
@@ -198,6 +201,29 @@ Secrets such as the JWT signing key and VirusTotal API key are loaded from envir
 
 6. Open `http://127.0.0.1:8000/docs` to test the API.
 
+7. In a second terminal, start the frontend (requires Node.js 22+):
+   ```
+   cd frontend
+   npm install
+   npm run dev
+   ```
+   Then open `http://localhost:5173`. The frontend talks to the API at `http://localhost:8000` by default; set `VITE_API_URL` in `frontend/.env` to point it somewhere else.
+
+### Running the API with Docker
+
+```
+docker build -t secure-file-vault .
+docker run --rm -p 8000:8000 --env-file .env -v vault-data:/data secure-file-vault
+```
+
+The database and uploaded files live in the `vault-data` volume, so they survive container restarts.
+
+## Frontend
+
+The `frontend/` folder is a React + TypeScript single-page app for registering, logging in, and uploading, listing, downloading, and deleting files, with each file's VirusTotal scan status shown in the list. The JWT is kept in `sessionStorage` and sent as a Bearer token; an expired token sends the user back to the login screen.
+
+The API allows cross-origin requests only from the origins listed in the `ALLOWED_ORIGINS` environment variable (default `http://localhost:5173`).
+
 ## API Testing
 
-This project is backend-only with no frontend. All testing and demoing is done through the interactive Swagger UI at `/docs`, which lets you register, log in, authorize with your token, and try every endpoint directly in the browser.
+Every endpoint can also be tried directly through the interactive Swagger UI at `/docs`, which lets you register, log in, authorize with your token, and call each route in the browser.
