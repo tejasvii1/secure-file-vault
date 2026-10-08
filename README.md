@@ -72,7 +72,7 @@ Interactive API docs (Swagger UI): https://secure-file-vault-3lon.onrender.com/d
 ## Architecture Diagram
 
 ```text
-                         Client / Swagger UI
+                     React Frontend / Swagger UI
                                 │
                                 │ HTTP requests
                                 ▼
@@ -220,9 +220,7 @@ The database and uploaded files live in the `vault-data` volume, so they survive
 
 ## Frontend
 
-The `frontend/` folder is a React + TypeScript single-page app for registering, logging in, and uploading, listing, downloading, and deleting files, with each file's VirusTotal scan status shown in the list. The JWT is kept in `sessionStorage` and sent as a Bearer token; an expired token sends the user back to the login screen.
-
-The API allows cross-origin requests only from the origins listed in the `ALLOWED_ORIGINS` environment variable (default `http://localhost:5173`).
+The `frontend/` folder is a React + TypeScript app for registering, logging in, and uploading, listing, downloading, and deleting files, with each file's VirusTotal scan status shown in the list. The API only accepts browser requests from the origins listed in `ALLOWED_ORIGINS` (default `http://localhost:5173`).
 
 ## API Testing
 
