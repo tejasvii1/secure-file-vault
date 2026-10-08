@@ -23,7 +23,8 @@ Interactive API docs (Swagger UI): https://secure-file-vault-3lon.onrender.com/d
 - **Auth**: JWT (python-jose), bcrypt password hashing (passlib)
 - **Malware Scanning**: VirusTotal API
 - **Containerization**: Docker
-- **CI**: GitHub Actions (builds the frontend, builds the Docker image, smoke-tests the API)
+- **Testing**: pytest
+- **CI**: GitHub Actions (runs the tests, builds the frontend, builds the Docker image, smoke-tests the API)
 - **Hosting**: Render
 - **Dev Environment**: WSL2 (Ubuntu), VS Code
 
@@ -217,6 +218,15 @@ docker run --rm -p 8000:8000 --env-file .env -v vault-data:/data secure-file-vau
 ```
 
 The database and uploaded files live in the `vault-data` volume, so they survive container restarts.
+
+### Running the tests
+
+```
+pip install -r requirements-dev.txt
+pytest
+```
+
+The tests cover authentication, file ownership checks, upload validation, and audit logging. They use a temporary database and never call VirusTotal.
 
 ## Frontend
 

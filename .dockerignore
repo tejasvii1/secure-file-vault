@@ -8,4 +8,5 @@ vault.db
 uploads/
 screenshots/
 frontend/
+tests/
 README.md
