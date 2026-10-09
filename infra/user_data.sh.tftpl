@@ -1,0 +1,42 @@
+#!/bin/bash
+# Runs once, as root, the first time the server boots.
+set -euxo pipefail
+
+dnf install -y docker
+systemctl enable --now docker
+
+cat > /usr/local/bin/deploy-vault <<'SCRIPT'
+#!/bin/bash
+# Pulls the newest image from ECR and restarts the API container.
+# The GitHub Actions deploy job runs this through SSM after pushing a new image.
+set -euo pipefail
+
+REGION="${region}"
+REPO="${ecr_repo_url}"
+
+param() {
+  aws ssm get-parameter --region "$REGION" --with-decryption --name "$1" --query Parameter.Value --output text
+}
+
+aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$${REPO%%/*}"
+docker pull "$REPO:latest"
+
+docker rm -f vault 2>/dev/null || true
+# --root-path /api: CloudFront serves the API under /api, so the docs page needs to know its prefix
+# --proxy-headers: record the visitor's IP in the audit log instead of CloudFront's
+docker run -d --name vault --restart unless-stopped \
+  -p 80:8000 \
+  -v vault-data:/data \
+  -e AWS_DEFAULT_REGION="$REGION" \
+  -e S3_BUCKET="${uploads_bucket}" \
+  -e SECRET_KEY="$(param /${project}/SECRET_KEY)" \
+  -e VT_API_KEY="$(param /${project}/VT_API_KEY)" \
+  "$REPO:latest" \
+  uvicorn main:app --host 0.0.0.0 --port 8000 --root-path /api --proxy-headers --forwarded-allow-ips '*'
+
+docker image prune -f
+SCRIPT
+chmod +x /usr/local/bin/deploy-vault
+
+# on the very first boot there is no image in ECR yet; the first GitHub Actions deploy starts the API
+/usr/local/bin/deploy-vault || echo "No image available yet."
