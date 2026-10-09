@@ -15,12 +15,16 @@ Interactive API docs (Swagger UI): https://secure-file-vault-3lon.onrender.com/d
 
 ## Tech Stack
 
+- **Frontend**: React, TypeScript, Vite
 - **Language**: Python 3.12
 - **Framework**: FastAPI
 - **Server**: Uvicorn (ASGI)
 - **Database**: SQLite with SQLModel (built on SQLAlchemy)
 - **Auth**: JWT (python-jose), bcrypt password hashing (passlib)
 - **Malware Scanning**: VirusTotal API
+- **Containerization**: Docker
+- **Testing**: pytest
+- **CI**: GitHub Actions (runs the tests, builds the frontend, builds the Docker image, smoke-tests the API)
 - **Hosting**: Render
 - **Dev Environment**: WSL2 (Ubuntu), VS Code
 
@@ -69,7 +73,7 @@ Interactive API docs (Swagger UI): https://secure-file-vault-3lon.onrender.com/d
 ## Architecture Diagram
 
 ```text
-                         Client / Swagger UI
+                     React Frontend / Swagger UI
                                 │
                                 │ HTTP requests
                                 ▼
@@ -198,6 +202,36 @@ Secrets such as the JWT signing key and VirusTotal API key are loaded from envir
 
 6. Open `http://127.0.0.1:8000/docs` to test the API.
 
+7. In a second terminal, start the frontend (requires Node.js 22+):
+   ```
+   cd frontend
+   npm install
+   npm run dev
+   ```
+   Then open `http://localhost:5173`. The frontend talks to the API at `http://localhost:8000` by default; set `VITE_API_URL` in `frontend/.env` to point it somewhere else.
+
+### Running the API with Docker
+
+```
+docker build -t secure-file-vault .
+docker run --rm -p 8000:8000 --env-file .env -v vault-data:/data secure-file-vault
+```
+
+The database and uploaded files live in the `vault-data` volume, so they survive container restarts.
+
+### Running the tests
+
+```
+pip install -r requirements-dev.txt
+pytest
+```
+
+The tests cover authentication, file ownership checks, upload validation, and audit logging. They use a temporary database and never call VirusTotal.
+
+## Frontend
+
+The `frontend/` folder is a React + TypeScript app for registering, logging in, and uploading, listing, downloading, and deleting files, with each file's VirusTotal scan status shown in the list. The API only accepts browser requests from the origins listed in `ALLOWED_ORIGINS` (default `http://localhost:5173`).
+
 ## API Testing
 
-This project is backend-only with no frontend. All testing and demoing is done through the interactive Swagger UI at `/docs`, which lets you register, log in, authorize with your token, and try every endpoint directly in the browser.
+Every endpoint can also be tried directly through the interactive Swagger UI at `/docs`, which lets you register, log in, authorize with your token, and call each route in the browser.

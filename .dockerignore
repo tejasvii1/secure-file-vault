@@ -1,0 +1,12 @@
+.git/
+.github/
+venv/
+__pycache__/
+*.pyc
+.env
+vault.db
+uploads/
+screenshots/
+frontend/
+tests/
+README.md

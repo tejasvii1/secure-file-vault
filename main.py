@@ -5,6 +5,7 @@ import re
 import requests
 from fastapi import Request 
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File as FastAPIFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 from database import create_db_and_tables, get_session
@@ -13,7 +14,18 @@ from auth import hash_password, verify_password, create_access_token, get_curren
 
 app = FastAPI()
 
-UPLOAD_DIR = "uploads"
+# the React frontend runs on a different origin (localhost:5173 in development), and browsers block
+# cross-origin requests unless the API explicitly allows that origin; set ALLOWED_ORIGINS to a
+# comma-separated list in production
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+UPLOAD_DIR = os.getenv("UPLOAD_DIR", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 ALLOWED_MAX_SIZE = 10 * 1024 * 1024
