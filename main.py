@@ -6,9 +6,10 @@ import requests
 from fastapi import Request 
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File as FastAPIFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlmodel import Session, select
 from database import create_db_and_tables, get_session
+from storage import get_storage
 from models import User, UserCreate, UserLogin, File, AuditLog
 from auth import hash_password, verify_password, create_access_token, get_current_user
 
@@ -25,8 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-UPLOAD_DIR = os.getenv("UPLOAD_DIR", "uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+storage = get_storage()  # local disk by default, S3 when S3_BUCKET is set (see storage.py)
 
 ALLOWED_MAX_SIZE = 10 * 1024 * 1024
 DANGEROUS_EXTENSIONS = {".exe", ".sh", ".bat", ".cmd", ".msi", ".com", ".scr", ".php", ".js"}
@@ -53,11 +53,10 @@ def log_action(session: Session, user_id: int, action: str, request: Request):  
     session.commit()
 
 
-def submit_to_virustotal(file_path: str) -> str:
+def submit_to_virustotal(filename: str, contents: bytes) -> str:
     headers = {"x-apikey": VT_API_KEY}
-    with open(file_path, "rb") as f:
-        files = {"file": f}
-        response = requests.post(VT_UPLOAD_URL, headers=headers, files=files)
+    files = {"file": (filename, contents)}
+    response = requests.post(VT_UPLOAD_URL, headers=headers, files=files)
     response.raise_for_status()
     return response.json()["data"]["id"]
 
@@ -135,10 +134,7 @@ def upload_file(
 
     file_id = uuid.uuid4().hex
     stored_filename = f"{file_id}{file_extension}"
-    stored_path = os.path.join(UPLOAD_DIR, stored_filename)
-
-    with open(stored_path, "wb") as buffer:
-        buffer.write(contents)
+    stored_path = storage.save(stored_filename, contents)
 
     new_file = File(
         owner_id=current_user.id,
@@ -148,7 +144,7 @@ def upload_file(
     )
 
     try:
-        analysis_id = submit_to_virustotal(stored_path)
+        analysis_id = submit_to_virustotal(safe_filename, contents)
         new_file.virustotal_result = f"pending:{analysis_id}"
     except Exception as e:
         print(f"VirusTotal submission failed: {e}")
@@ -180,9 +176,18 @@ def download_file(file_id: int, request: Request, current_user: User = Depends(g
     if file_record.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="You do not have permission to access this file")
 
+    contents = storage.read(file_record.stored_path)
+    if contents is None:
+        raise HTTPException(status_code=404, detail="File contents not found")
+
     log_action(session, current_user.id, f"download:{file_record.filename}", request)
 
-    return FileResponse(path=file_record.stored_path, filename=file_record.filename)
+    # the stored filename was sanitized on upload, so it is safe to put in a header
+    return Response(
+        content=contents,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{file_record.filename}"'},
+    )
 
 
 @app.delete("/files/{file_id}")
@@ -196,8 +201,7 @@ def delete_file(file_id: int, request: Request, current_user: User = Depends(get
 
     filename = file_record.filename
 
-    if os.path.exists(file_record.stored_path):
-        os.remove(file_record.stored_path)
+    storage.delete(file_record.stored_path)
 
     session.delete(file_record)
     session.commit()

@@ -51,7 +51,7 @@ def test_upload_rejects_file_over_size_limit(client, alice):
 
 
 def test_upload_still_succeeds_when_virustotal_is_down(client, alice, monkeypatch):
-    def fail(file_path):
+    def fail(filename, contents):
         raise RuntimeError("VirusTotal unreachable")
 
     monkeypatch.setattr(main, "submit_to_virustotal", fail)
