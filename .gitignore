@@ -6,3 +6,8 @@ vault.db
 uploads/
 node_modules/
 dist/
+# Terraform: provider downloads and state (state contains the generated SECRET_KEY)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
