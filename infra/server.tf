@@ -83,6 +83,15 @@ resource "aws_iam_role_policy" "api" {
         Resource = "${aws_s3_bucket.uploads.arn}/uploads/*"
       },
       {
+        # without this, asking S3 for a file that doesn't exist returns "access denied" instead of
+        # "not found", and the API can't tell a missing file from a permissions problem
+        Sid       = "SeeWhetherAFileExists"
+        Effect    = "Allow"
+        Action    = "s3:ListBucket"
+        Resource  = aws_s3_bucket.uploads.arn
+        Condition = { StringLike = { "s3:prefix" = "uploads/*" } }
+      },
+      {
         Sid      = "EcrLogin"
         Effect   = "Allow"
         Action   = "ecr:GetAuthorizationToken"
