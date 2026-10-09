@@ -140,7 +140,7 @@ jobs:
       - name: Check the live site
         run: |
           for i in $(seq 1 15); do
-            curl -fsS "${{ vars.SITE_URL }}/api/" && exit 0
+            curl -fsS -o /dev/null "${{ vars.SITE_URL }}/api/openapi.json" && curl -fsS -o /dev/null "${{ vars.SITE_URL }}/" && exit 0
             sleep 4
           done
           exit 1
