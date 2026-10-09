@@ -32,7 +32,7 @@ def clean_database():
 @pytest.fixture(autouse=True)
 def no_virustotal(monkeypatch):
     # tests must never call the real VirusTotal API
-    monkeypatch.setattr(main, "submit_to_virustotal", lambda file_path: "analysis-123")
+    monkeypatch.setattr(main, "submit_to_virustotal", lambda filename, contents: "analysis-123")
 
 
 @pytest.fixture

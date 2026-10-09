@@ -11,7 +11,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py auth.py database.py models.py ./
+COPY main.py auth.py database.py models.py storage.py ./
 
 # run as an unprivileged user; /data is the only place the app writes to
 RUN useradd --create-home --uid 1000 vault \
